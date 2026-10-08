@@ -6,7 +6,10 @@ Deno.serve(async (req)=>{
   try{
     const token=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'')
     if(!token) throw new Error('Unauthorized')
-    const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const secretKeys=JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')||'{}')
+    const adminKey=secretKeys.default
+    if(!adminKey) throw new Error('Supabase secret key is not configured')
+    const sb=createClient(Deno.env.get('SUPABASE_URL')!,adminKey)
     const {data:{user},error:authError}=await sb.auth.getUser(token)
     if(authError||!user) throw new Error('Unauthorized')
 
