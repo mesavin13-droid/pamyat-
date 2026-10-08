@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 760" role="img" aria-labelledby="title desc">
+<title id="title">ПАМЯТЬ</title><desc id="desc">Логотип сервиса ухода за местами памяти</desc>
+<rect width="640" height="760" rx="44" fill="#f4f1e9"/>
+<g fill="none" stroke="#3c5b47" stroke-width="12" stroke-linecap="round">
+  <path d="M150 300a170 170 0 1 1 340 0"/>
+</g>
+<path d="M238 326V184c0-28 22-50 50-50h64c28 0 50 22 50 50v142H238Z" fill="#222720"/>
+<path d="M270 215h100M320 165v100" stroke="#fffdf8" stroke-width="13" stroke-linecap="round"/>
+<path d="M215 326h210l28 31H187Z" fill="#222720"/>
+<path d="M175 357h290l-24 33H199Z" fill="#222720"/>
+<g fill="#788a70" stroke="#3c5b47" stroke-width="4">
+  <path d="M198 340c-53-9-84-47-86-89 50 3 82 31 86 89Z"/>
+  <path d="M217 322c-4-59 20-100 61-121 11 51-5 91-61 121Z"/>
+  <path d="M219 356c-23-30-22-66 2-90 27 19 31 51-2 90Z"/>
+</g>
+<text x="320" y="495" text-anchor="middle" font-family="Georgia,serif" font-size="82" letter-spacing="11" fill="#222720">ПАМЯТЬ</text>
+<text x="320" y="544" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" letter-spacing="4" fill="#3c5b47">ЗАБОТА О МЕСТАХ ПАМЯТИ</text>
+<path d="M180 590h105M355 590h105" stroke="#a1834f" stroke-width="3"/>
+<path d="M320 575c-10-17-32-11-32 7 0 12 32 33 32 33s32-21 32-33c0-18-22-24-32-7Z" fill="#a1834f"/>
+</svg>
