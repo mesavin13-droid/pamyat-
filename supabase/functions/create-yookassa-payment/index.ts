@@ -20,6 +20,21 @@ Deno.serve(async (req)=>{
     if(order.client_id!==user.id) throw new Error('Forbidden')
     if(!['draft','awaiting_payment'].includes(order.status)) throw new Error('Order cannot be paid')
 
+    const {data:existing}=await sb.from('payments')
+      .select('provider_payment_id,confirmation_url,status')
+      .eq('order_id',order.id)
+      .in('status',['pending','waiting_for_capture'])
+      .order('created_at',{ascending:false})
+      .limit(1)
+      .maybeSingle()
+    if(existing?.confirmation_url && existing.status!=='canceled'){
+      return new Response(JSON.stringify({
+        payment_id:existing.provider_payment_id,
+        confirmation_url:existing.confirmation_url,
+        reused:true
+      }),{headers:{...cors,'Content-Type':'application/json'}})
+    }
+
     const idem=crypto.randomUUID()
     const shop=Deno.env.get('YOOKASSA_SHOP_ID')
     const secret=Deno.env.get('YOOKASSA_SECRET_KEY')
