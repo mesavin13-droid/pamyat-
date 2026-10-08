@@ -1,10 +1,13 @@
 {
-  "name": "ПАМЯТЬ",
-  "short_name": "ПАМЯТЬ",
-  "lang": "ru",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#f4f1e9",
-  "theme_color": "#f4f1e9",
-  "description": "Уход за местами памяти"
+  "name":"ПАМЯТЬ",
+  "short_name":"ПАМЯТЬ",
+  "lang":"ru",
+  "start_url":"/",
+  "display":"standalone",
+  "background_color":"#f4f1e9",
+  "theme_color":"#3c5b47",
+  "description":"Уход за местами памяти",
+  "icons":[
+    {"src":"/logo.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
 }
