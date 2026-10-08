@@ -192,26 +192,46 @@ alter table public.subscriptions enable row level security;
 alter table public.notifications enable row level security;
 alter table public.payments enable row level security;
 
-create policy if not exists profiles_self on public.profiles for select using(id=auth.uid() or public.is_admin());
-create policy if not exists profiles_admin_write on public.profiles for all using(public.is_admin()) with check(public.is_admin());
-create policy if not exists cemeteries_read on public.cemeteries for select using(active=true or public.is_admin());
-create policy if not exists services_read on public.services for select using(active=true or public.is_admin());
-create policy if not exists care_pricing_read on public.care_pricing for select using(active=true or public.is_admin());
-create policy if not exists care_pricing_admin on public.care_pricing for all using(public.is_admin()) with check(public.is_admin());
-create policy if not exists memorials_client on public.memorials for all using(client_id=auth.uid() or public.is_admin() or exists(select 1 from public.orders o where o.memorial_id=id and o.executor_id=auth.uid())) with check(client_id=auth.uid() or public.is_admin());
-create policy if not exists orders_related on public.orders for select using(client_id=auth.uid() or executor_id=auth.uid() or public.is_admin());
-create policy if not exists orders_client_insert on public.orders for insert with check(client_id=auth.uid() and status='draft' and executor_id is null);
-create policy if not exists orders_client_update on public.orders for update using(client_id=auth.uid() and status='draft') with check(client_id=auth.uid() and status='draft');
-create policy if not exists orders_executor_update on public.orders for update using(executor_id=auth.uid() or public.is_admin()) with check(executor_id=auth.uid() or public.is_admin());
-create policy if not exists orders_admin on public.orders for all using(public.is_admin()) with check(public.is_admin());
-create policy if not exists photos_related on public.order_photos for select using(exists(select 1 from public.orders o where o.id=order_id and (o.client_id=auth.uid() or o.executor_id=auth.uid() or public.is_admin())));
-create policy if not exists photos_insert on public.order_photos for insert with check(exists(select 1 from public.orders o where o.id=order_id and (o.executor_id=auth.uid() or public.is_admin() or (o.client_id=auth.uid() and o.status='draft' and kind='assessment'))));
-create policy if not exists visits_related on public.visits for select using(exists(select 1 from public.orders o where o.id=order_id and (o.client_id=auth.uid() or o.executor_id=auth.uid() or public.is_admin())));
-create policy if not exists visits_write on public.visits for all using(public.is_admin() or exists(select 1 from public.orders o where o.id=order_id and o.executor_id=auth.uid())) with check(public.is_admin() or exists(select 1 from public.orders o where o.id=order_id and o.executor_id=auth.uid()));
-create policy if not exists subscriptions_related on public.subscriptions for select using(client_id=auth.uid() or public.is_admin());
-create policy if not exists subscriptions_admin on public.subscriptions for all using(public.is_admin()) with check(public.is_admin());
-create policy if not exists notifications_self on public.notifications for all using(profile_id=auth.uid() or public.is_admin()) with check(profile_id=auth.uid() or public.is_admin());
-create policy if not exists payments_related on public.payments for select using(exists(select 1 from public.orders o where o.id=order_id and (o.client_id=auth.uid() or public.is_admin())));
+drop policy if exists profiles_self on public.profiles;
+create policy profiles_self on public.profiles for select using(id=auth.uid() or public.is_admin());
+drop policy if exists profiles_admin_write on public.profiles;
+create policy profiles_admin_write on public.profiles for all using(public.is_admin()) with check(public.is_admin());
+drop policy if exists cemeteries_read on public.cemeteries;
+create policy cemeteries_read on public.cemeteries for select using(active=true or public.is_admin());
+drop policy if exists services_read on public.services;
+create policy services_read on public.services for select using(active=true or public.is_admin());
+drop policy if exists care_pricing_read on public.care_pricing;
+create policy care_pricing_read on public.care_pricing for select using(active=true or public.is_admin());
+drop policy if exists care_pricing_admin on public.care_pricing;
+create policy care_pricing_admin on public.care_pricing for all using(public.is_admin()) with check(public.is_admin());
+drop policy if exists memorials_client on public.memorials;
+create policy memorials_client on public.memorials for all using(client_id=auth.uid() or public.is_admin() or exists(select 1 from public.orders o where o.memorial_id=id and o.executor_id=auth.uid())) with check(client_id=auth.uid() or public.is_admin());
+drop policy if exists orders_related on public.orders;
+create policy orders_related on public.orders for select using(client_id=auth.uid() or executor_id=auth.uid() or public.is_admin());
+drop policy if exists orders_client_insert on public.orders;
+create policy orders_client_insert on public.orders for insert with check(client_id=auth.uid() and status='draft' and executor_id is null);
+drop policy if exists orders_client_update on public.orders;
+create policy orders_client_update on public.orders for update using(client_id=auth.uid() and status='draft') with check(client_id=auth.uid() and status='draft');
+drop policy if exists orders_executor_update on public.orders;
+create policy orders_executor_update on public.orders for update using(executor_id=auth.uid() or public.is_admin()) with check(executor_id=auth.uid() or public.is_admin());
+drop policy if exists orders_admin on public.orders;
+create policy orders_admin on public.orders for all using(public.is_admin()) with check(public.is_admin());
+drop policy if exists photos_related on public.order_photos;
+create policy photos_related on public.order_photos for select using(exists(select 1 from public.orders o where o.id=order_id and (o.client_id=auth.uid() or o.executor_id=auth.uid() or public.is_admin())));
+drop policy if exists photos_insert on public.order_photos;
+create policy photos_insert on public.order_photos for insert with check(exists(select 1 from public.orders o where o.id=order_id and (o.executor_id=auth.uid() or public.is_admin() or (o.client_id=auth.uid() and o.status='draft' and kind='assessment'))));
+drop policy if exists visits_related on public.visits;
+create policy visits_related on public.visits for select using(exists(select 1 from public.orders o where o.id=order_id and (o.client_id=auth.uid() or o.executor_id=auth.uid() or public.is_admin())));
+drop policy if exists visits_write on public.visits;
+create policy visits_write on public.visits for all using(public.is_admin() or exists(select 1 from public.orders o where o.id=order_id and o.executor_id=auth.uid())) with check(public.is_admin() or exists(select 1 from public.orders o where o.id=order_id and o.executor_id=auth.uid()));
+drop policy if exists subscriptions_related on public.subscriptions;
+create policy subscriptions_related on public.subscriptions for select using(client_id=auth.uid() or public.is_admin());
+drop policy if exists subscriptions_admin on public.subscriptions;
+create policy subscriptions_admin on public.subscriptions for all using(public.is_admin()) with check(public.is_admin());
+drop policy if exists notifications_self on public.notifications;
+create policy notifications_self on public.notifications for all using(profile_id=auth.uid() or public.is_admin()) with check(profile_id=auth.uid() or public.is_admin());
+drop policy if exists payments_related on public.payments;
+create policy payments_related on public.payments for select using(exists(select 1 from public.orders o where o.id=order_id and (o.client_id=auth.uid() or public.is_admin())));
 
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path=public
@@ -222,5 +242,7 @@ create trigger on_auth_user_created after insert on auth.users for each row exec
 
 insert into storage.buckets(id,name,public) values('order-photos','order-photos',false) on conflict(id) do update set public=false;
 
-create policy if not exists order_photos_storage_read on storage.objects for select using(bucket_id='order-photos' and exists(select 1 from public.orders o where o.id::text=(storage.foldername(name))[1] and (o.client_id=auth.uid() or o.executor_id=auth.uid() or public.is_admin())));
-create policy if not exists order_photos_storage_insert on storage.objects for insert with check(bucket_id='order-photos' and exists(select 1 from public.orders o where o.id::text=(storage.foldername(name))[1] and (o.executor_id=auth.uid() or public.is_admin() or (o.client_id=auth.uid() and o.status='draft' and (storage.foldername(name))[2]='assessment'))));
+drop policy if exists order_photos_storage_read on storage.objects;
+create policy order_photos_storage_read on storage.objects for select using(bucket_id='order-photos' and exists(select 1 from public.orders o where o.id::text=(storage.foldername(name))[1] and (o.client_id=auth.uid() or o.executor_id=auth.uid() or public.is_admin())));
+drop policy if exists order_photos_storage_insert on storage.objects;
+create policy order_photos_storage_insert on storage.objects for insert with check(bucket_id='order-photos' and exists(select 1 from public.orders o where o.id::text=(storage.foldername(name))[1] and (o.executor_id=auth.uid() or public.is_admin() or (o.client_id=auth.uid() and o.status='draft' and (storage.foldername(name))[2]='assessment'))));
