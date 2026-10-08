@@ -71,8 +71,57 @@ function ClientView(p:{memorial:Memorial;orders:Order[];care:Care;setCare:(x:Car
 }
 
 function ExecutorView({notice}:{notice:(x:string)=>void}){
- const[step,setStep]=useState<'before'|'start'|'after'|'review'>('before'),[before,setBefore]=useState<File|null>(null),[after,setAfter]=useState<File|null>(null)
- return <section className="grid"><div className="card"><div className="label">Сегодня</div><div className="name">Мария Ивановна</div><div className="muted">Клещихинское · сектор 24 · ряд 8 · место 17</div><div className="meta"><div><span className="label">Услуга</span><b>Полный уход</b></div><div><span className="label">Цена</span><b>{money(4290)}</b></div><div><span className="label">Этап</span><b>{step==='before'?'Фото ДО':step==='start'?'В работе':step==='after'?'Фото ПОСЛЕ':'Проверка'}</b></div></div><div className="executor"><label className="upload">Фото ДО<input hidden type="file" accept="image/*" capture="environment" onChange={e=>setBefore(e.target.files?.[0]??null)}/><div className="small">{before?.name??'Сделать или выбрать фото'}</div></label><label className="upload">Фото ПОСЛЕ<input hidden type="file" accept="image/*" capture="environment" onChange={e=>setAfter(e.target.files?.[0]??null)}/><div className="small">{after?.name??'Появится после работы'}</div></label></div><div className="actions">{step==='before'&&<button className="primary" disabled={!before} onClick={()=>{setStep('start');notice('Фото ДО сохранено. Теперь можно начинать работу.')}}>Сохранить Фото ДО</button>}{step==='start'&&<button className="primary" onClick={()=>setStep('after')}>Начать работу</button>}{step==='after'&&<button className="primary" disabled={!after} onClick={()=>{setStep('review');notice('Фото ПОСЛЕ сохранено. Заказ передан на проверку.')}}>Сохранить Фото ПОСЛЕ</button>}{step==='review'&&<span className="status green">Готово к проверке</span>}</div></div><div className="card"><h3>Правило работы</h3><div className="timeline"><div className="event"><strong>1. Фото ДО</strong><span className="small muted">Фиксируем состояние места до начала работ.</span></div><div className="event"><strong>2. Работа</strong><span className="small muted">Выполняем только согласованный объём.</span></div><div className="event"><strong>3. Фото ПОСЛЕ</strong><span className="small muted">Клиент получает доказательство выполненной работы.</span></div></div></div></section>
+ const[items,setItems]=useState<any[]>([]),[selectedId,setSelectedId]=useState<string|null>(null),[step,setStep]=useState<'before'|'start'|'after'|'review'>('before'),[before,setBefore]=useState<File|null>(null),[after,setAfter]=useState<File|null>(null),[busy,setBusy]=useState(false)
+ const current=items.find(x=>x.id===selectedId)??items[0]??null
+ useEffect(()=>{void load()},[])
+ async function load(){
+  if(!supabase)return
+  const u=await supabase.auth.getUser(); if(!u.data.user)return
+  const q=await supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,comment,memorials(name,sector,row,place,cemeteries(name)),services(name)').eq('executor_id',u.data.user.id).in('status',['assigned','before_photos','in_progress','after_photos','review']).order('visit_date')
+  if(q.data){setItems(q.data);if(q.data[0]){setSelectedId(q.data[0].id);syncStep(q.data[0].status)}}
+ }
+ function syncStep(status:string){setStep(status==='assigned'?'before':status==='before_photos'?'start':status==='in_progress'?'after':status==='after_photos'||status==='review'?'review':'before')}
+ async function upload(kind:'before'|'after',file:File){
+  if(!current||!supabase){
+   if(kind==='before'){setBefore(file);setStep('start');notice('Фото ДО сохранено в демо-режиме.')}else{setAfter(file);setStep('review');notice('Фото ПОСЛЕ сохранено в демо-режиме.')}
+   return
+  }
+  setBusy(true)
+  try{
+   const ext=file.name.split('.').pop()?.toLowerCase()||'jpg'
+   const path=current.id+'/'+kind+'/'+crypto.randomUUID()+'.'+ext
+   const up=await supabase.storage.from('order-photos').upload(path,file,{upsert:false,contentType:file.type||'image/jpeg'})
+   if(up.error)throw up.error
+   const row=await supabase.from('order_photos').insert({order_id:current.id,kind,storage_path:path})
+   if(row.error)throw row.error
+   const nextStatus=kind==='before'?'before_photos':'after_photos'
+   const upd=await supabase.from('orders').update({status:nextStatus}).eq('id',current.id)
+   if(upd.error)throw upd.error
+   if(kind==='before'){setBefore(file);setStep('start');notice('Фото ДО сохранено. Теперь можно начинать работу.')}else{setAfter(file);setStep('review');notice('Фото ПОСЛЕ сохранено. Заказ передан на проверку.')}
+   await load()
+  }catch(err){notice(err instanceof Error?err.message:'Не удалось сохранить фото')}finally{setBusy(false)}
+ }
+ async function startWork(){
+  if(!current||!supabase){setStep('after');return}
+  setBusy(true);const r=await supabase.from('orders').update({status:'in_progress'}).eq('id',current.id);setBusy(false)
+  if(r.error){notice(r.error.message);return}setStep('after');await load()
+ }
+ return <section className="grid">
+  <div className="card">
+   <div className="cardhead"><div><div className="label">Назначенные заказы</div><div className="name">Сегодня</div></div><span className="status green">{items.length}</span></div>
+   {items.length===0?<p className="muted">Пока нет назначенных заказов.</p>:<div className="timeline">{items.map((o:any)=><button key={o.id} className={'choice '+((current?.id===o.id)?'sel':'')} onClick={()=>{setSelectedId(o.id);syncStep(o.status)}}><b>{o.memorials?.name??'Место памяти'}</b><div className="small muted">{o.memorials?.cemeteries?.name??'Кладбище'} · сектор {o.memorials?.sector??'—'} · ряд {o.memorials?.row??'—'} · место {o.memorials?.place??'—'}</div><div className="small muted">{o.services?.name??'Уход'} · {money(Number(o.amount_rub))}</div></button>)}</div>}
+  </div>
+  {current&&<div className="card">
+   <div className="label">Текущий заказ</div><div className="name">{current.memorials?.name??'Место памяти'}</div><div className="muted">{current.memorials?.cemeteries?.name??'Кладбище'} · сектор {current.memorials?.sector??'—'} · ряд {current.memorials?.row??'—'} · место {current.memorials?.place??'—'}</div>
+   <div className="meta"><div><span className="label">Услуга</span><b>{current.services?.name??'Уход'}</b></div><div><span className="label">Цена</span><b>{money(Number(current.amount_rub))}</b></div><div><span className="label">Этап</span><b>{step==='before'?'Фото ДО':step==='start'?'Готов к работе':step==='after'?'В работе':'Проверка'}</b></div></div>
+   <div className="executor">
+    <label className="upload">Фото ДО<input hidden type="file" accept="image/*" capture="environment" disabled={busy||step!=='before'} onChange={e=>{const file=e.target.files?.[0];if(file)void upload('before',file)}}/><div className="small">{before?.name??'Сделать или выбрать фото'}</div></label>
+    <label className="upload">Фото ПОСЛЕ<input hidden type="file" accept="image/*" capture="environment" disabled={busy||step!=='after'} onChange={e=>{const file=e.target.files?.[0];if(file)void upload('after',file)}}/><div className="small">{after?.name??'Появится после работы'}</div></label>
+   </div>
+   <div className="actions">{step==='before'&&<button className="primary" disabled={busy||!before}>Выберите Фото ДО</button>}{step==='start'&&<button className="primary" disabled={busy} onClick={()=>void startWork()}>Начать работу</button>}{step==='after'&&<button className="primary" disabled={busy}>Загрузите Фото ПОСЛЕ</button>}{step==='review'&&<span className="status green">Готово к проверке</span>}</div>
+  </div>}
+  <div className="card"><h3>Правило работы</h3><div className="timeline"><div className="event"><strong>1. Фото ДО</strong><span className="small muted">Сначала фиксируем состояние места.</span></div><div className="event"><strong>2. Работа</strong><span className="small muted">После Фото ДО становится доступна кнопка начала работы.</span></div><div className="event"><strong>3. Фото ПОСЛЕ</strong><span className="small muted">После работы загружаем обязательное фото и передаём заказ на проверку.</span></div></div></div>
+ </section>
 }
 
 function AdminView({orders}:{orders:Order[]}){
