@@ -1,0 +1,8 @@
+# ПАМЯТЬ — Edge Functions config
+# These functions validate auth themselves and/or are called by ЮKassa.
+
+[functions.create-yookassa-payment]
+verify_jwt = false
+
+[functions.yookassa-webhook]
+verify_jwt = false
