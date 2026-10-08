@@ -47,7 +47,7 @@ Deno.serve(async (req)=>{
       body:JSON.stringify({
         amount:{value:Number(order.amount_rub).toFixed(2),currency:'RUB'},
         capture:true,
-        confirmation:{type:'redirect',return_url:site+'/payment/return'},
+        confirmation:{type:'redirect',return_url:site+'/payment/return?order_id='+encodeURIComponent(order.id)},
         description:'Оплата ухода за местом памяти',
         metadata:{order_id:order.id}
       })
