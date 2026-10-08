@@ -46,7 +46,10 @@ export function PamyatApp(){
  try{
   const r=await supabase.from('orders').insert({client_id:u.data.user.id,memorial_id:memorial.id,care_level:care,service_id:null,amount_rub:selected.price,status:'draft',visit_date:(new FormData(e.currentTarget).get('visit_date')||null),comment:(new FormData(e.currentTarget).get('comment')||null)}).select().single()
   if(r.error)throw r.error
-  setNotice('Заявка создана. Следующий шаг — оплата.');setModal(null);await load()
+  const payment=await supabase.functions.invoke('create-yookassa-payment',{body:{order_id:r.data.id}})
+  if(payment.error)throw payment.error
+  if(payment.data?.confirmation_url){ window.location.href=payment.data.confirmation_url; return }
+  setNotice('Заявка создана. Ссылка на оплату пока недоступна.');setModal(null);await load()
  }catch(err){setNotice(err instanceof Error?err.message:'Не удалось создать заказ')}finally{setBusy(false)}
  }
  return <div><header className="top"><div className="container topin"><a className="brandmark" href="/" aria-label="ПАМЯТЬ"><img src="/logo.svg" alt="ПАМЯТЬ" /></a><button className="mode" onClick={()=>setModal('login')}>{hasSupabase?'Войти':'DEMO MODE'}</button></div></header>
