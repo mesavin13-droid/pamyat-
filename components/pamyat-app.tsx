@@ -125,5 +125,25 @@ function ExecutorView({notice}:{notice:(x:string)=>void}){
 }
 
 function AdminView({orders}:{orders:Order[]}){
- return <section><div className="metricgrid"><div className="metric"><span className="label">Всего</span><b>{orders.length}</b></div><div className="metric"><span className="label">В работе</span><b>{orders.filter(x=>['assigned','before_photos','in_progress','after_photos'].includes(x.status)).length}</b></div><div className="metric"><span className="label">Завершено</span><b>{orders.filter(x=>x.status==='completed').length}</b></div></div><div className="card" style={{marginTop:12}}><div className="cardhead"><h3>Очередь</h3><span className="status">Контроль исполнителей</span></div>{orders.map(o=><div className="order" key={o.id}><div className="orderrow"><div><b>{o.id}</b><div className="small muted">{o.memorial} · {o.service}</div></div><span className={'status '+(o.status==='completed'?'green':'')}>{STATUS[o.status]}</span></div></div>)}</div></section>
+ const[liveOrders,setLiveOrders]=useState<Order[]>(orders),[executors,setExecutors]=useState<{id:string;full_name:string}[]>([]),[busy,setBusy]=useState<string|null>(null)
+ useEffect(()=>{void load()},[])
+ async function load(){
+  if(!supabase)return
+  const [oq,eq]=await Promise.all([
+   supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,executor_id,memorials(name),services(name)').order('created_at',{ascending:false}),
+   supabase.from('profiles').select('id,full_name').eq('role','executor').order('full_name')
+  ])
+  if(oq.data)setLiveOrders(oq.data.map((x:any)=>({id:x.id,memorial:x.memorials?.name??'Место памяти',service:x.services?.name??'Уход',amount:Number(x.amount_rub),date:x.visit_date?new Date(x.visit_date).toLocaleDateString('ru-RU'):'—',status:x.status,care:x.care_level??'unknown'})))
+  if(eq.data)setExecutors(eq.data as any)
+ }
+ async function assign(orderId:string,executorId:string){
+  if(!supabase)return
+  setBusy(orderId)
+  const q=await supabase.from('orders').update({executor_id:executorId||null,status:executorId?'assigned':'paid'}).eq('id',orderId).in('status',['paid','assigned'])
+  setBusy(null)
+  if(q.error)alert(q.error.message); else await load()
+ }
+ const source=hasSupabase?liveOrders:orders
+ return <section><div className="metricgrid"><div className="metric"><span className="label">Всего</span><b>{source.length}</b></div><div className="metric"><span className="label">В работе</span><b>{source.filter(x=>['assigned','before_photos','in_progress','after_photos'].includes(x.status)).length}</b></div><div className="metric"><span className="label">Завершено</span><b>{source.filter(x=>x.status==='completed').length}</b></div></div>
+ <div className="card" style={{marginTop:12}}><div className="cardhead"><h3>Очередь заказов</h3><span className="status">Контроль исполнителей</span></div>{source.map(o=><div className="order" key={o.id}><div className="orderrow"><div><b>{o.id}</b><div className="small muted">{o.memorial} · {o.service} · {money(o.amount)}</div></div><span className={'status '+(o.status==='completed'?'green':'')}>{STATUS[o.status]}</span></div>{hasSupabase&&['paid','assigned'].includes(o.status)&&<div className="actions"><select aria-label="Исполнитель" disabled={busy===o.id} defaultValue="" onChange={e=>void assign(o.id,e.target.value)}><option value="" disabled>{o.status==='assigned'?'Назначить заново':'Выбрать исполнителя'}</option>{executors.map(e=><option key={e.id} value={e.id}>{e.full_name||'Исполнитель'}</option>)}</select></div>}</div>)}</div></section>
 }
