@@ -155,16 +155,26 @@ function ExecutorView({notice}:{notice:(x:string)=>void}){
 }
 
 function AdminView({orders}:{orders:Order[]}){
- const[liveOrders,setLiveOrders]=useState<Order[]>(orders),[executors,setExecutors]=useState<{id:string;full_name:string}[]>([]),[busy,setBusy]=useState<string|null>(null)
+ const[liveOrders,setLiveOrders]=useState<Order[]>(orders),[executors,setExecutors]=useState<{id:string;full_name:string}[]>([]),[busy,setBusy]=useState<string|null>(null),[photoUrls,setPhotoUrls]=useState<Record<string,{before?:string;after?:string}>>({})
  useEffect(()=>{void load()},[])
  async function load(){
   if(!supabase)return
-  const [oq,eq]=await Promise.all([
+  const [oq,eq,pq]=await Promise.all([
    supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,executor_id,memorials(name),services(name)').order('created_at',{ascending:false}),
-   supabase.from('profiles').select('id,full_name').eq('role','executor').order('full_name')
+   supabase.from('profiles').select('id,full_name').eq('role','executor').order('full_name'),
+   supabase.from('order_photos').select('order_id,kind,storage_path').in('kind',['before','after'])
   ])
   if(oq.data)setLiveOrders(oq.data.map((x:any)=>({id:x.id,memorial:x.memorials?.name??'Место памяти',service:x.services?.name??'Уход',amount:Number(x.amount_rub),date:x.visit_date?new Date(x.visit_date).toLocaleDateString('ru-RU'):'—',status:x.status,care:x.care_level??'unknown'})))
   if(eq.data)setExecutors(eq.data as any)
+  if(pq.data){
+   const results=await Promise.all(pq.data.map(async (p:any)=>{
+    const signed=await supabase.storage.from('order-photos').createSignedUrl(p.storage_path,3600)
+    return {orderId:p.order_id,kind:p.kind,url:signed.data?.signedUrl}
+   }))
+   const map:Record<string,{before?:string;after?:string}>={}
+   for(const item of results){if(!item.url)continue;map[item.orderId]??={};if(item.kind==='before')map[item.orderId].before=item.url;if(item.kind==='after')map[item.orderId].after=item.url}
+   setPhotoUrls(map)
+  }
  }
  async function assign(orderId:string,executorId:string){
   if(!supabase)return
@@ -173,7 +183,17 @@ function AdminView({orders}:{orders:Order[]}){
   setBusy(null)
   if(q.error)alert(q.error.message); else await load()
  }
+ async function complete(orderId:string){
+  if(!supabase)return
+  setBusy(orderId)
+  const q=await supabase.from('orders').update({status:'completed'}).eq('id',orderId).eq('status','review')
+  setBusy(null)
+  if(q.error)alert(q.error.message); else await load()
+ }
  const source=hasSupabase?liveOrders:orders
- return <section><div className="metricgrid"><div className="metric"><span className="label">Всего</span><b>{source.length}</b></div><div className="metric"><span className="label">В работе</span><b>{source.filter(x=>['assigned','before_photos','in_progress','after_photos'].includes(x.status)).length}</b></div><div className="metric"><span className="label">Завершено</span><b>{source.filter(x=>x.status==='completed').length}</b></div></div>
- <div className="card" style={{marginTop:12}}><div className="cardhead"><h3>Очередь заказов</h3><span className="status">Контроль исполнителей</span></div>{source.map(o=><div className="order" key={o.id}><div className="orderrow"><div><b>{o.id}</b><div className="small muted">{o.memorial} · {o.service} · {money(o.amount)}</div></div><span className={'status '+(o.status==='completed'?'green':'')}>{STATUS[o.status]}</span></div>{hasSupabase&&['paid','assigned'].includes(o.status)&&<div className="actions"><select aria-label="Исполнитель" disabled={busy===o.id} defaultValue="" onChange={e=>void assign(o.id,e.target.value)}><option value="" disabled>{o.status==='assigned'?'Назначить заново':'Выбрать исполнителя'}</option>{executors.map(e=><option key={e.id} value={e.id}>{e.full_name||'Исполнитель'}</option>)}</select></div>}</div>)}</div></section>
+ return <section><div className="metricgrid"><div className="metric"><span className="label">Всего</span><b>{source.length}</b></div><div className="metric"><span className="label">В работе</span><b>{source.filter(x=>['assigned','before_photos','in_progress','after_photos','review'].includes(x.status)).length}</b></div><div className="metric"><span className="label">Завершено</span><b>{source.filter(x=>x.status==='completed').length}</b></div></div>
+ <div className="card" style={{marginTop:12}}><div className="cardhead"><h3>Очередь заказов</h3><span className="status">Контроль исполнителей</span></div>{source.length===0?<p className="muted">Заказов пока нет.</p>:source.map(o=><div className="order" key={o.id}><div className="orderrow"><div><b>{o.id}</b><div className="small muted">{o.memorial} · {o.service} · {money(o.amount)}</div><div className="small muted">{o.date}</div></div><span className={'status '+(o.status==='completed'?'green':'')}>{STATUS[o.status]??o.status}</span></div>
+ {hasSupabase&&['paid','assigned'].includes(o.status)&&<div className="actions"><select aria-label="Исполнитель" disabled={busy===o.id} defaultValue="" onChange={e=>void assign(o.id,e.target.value)}><option value="" disabled>{o.status==='assigned'?'Назначить заново':'Выбрать исполнителя'}</option>{executors.map(e=><option key={e.id} value={e.id}>{e.full_name||'Исполнитель'}</option>)}</select></div>}
+ {hasSupabase&&o.status==='review'&&<><div className="photo-pair">{photoUrls[o.id]?.before&&<figure><img src={photoUrls[o.id].before} alt="Фото до"/><figcaption>Фото ДО</figcaption></figure>}{photoUrls[o.id]?.after&&<figure><img src={photoUrls[o.id].after} alt="Фото после"/><figcaption>Фото ПОСЛЕ</figcaption></figure>}</div><div className="actions"><button className="primary" disabled={busy===o.id||!photoUrls[o.id]?.before||!photoUrls[o.id]?.after} onClick={()=>void complete(o.id)}>{busy===o.id?'Сохраняем…':'Подтвердить и завершить'}</button></div></>}
+ </div>)}</div></section>
 }
