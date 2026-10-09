@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const secret = Deno.env.get('YOOKASSA_SECRET_KEY')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const secretKeys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}')
-    const adminKey = secretKeys.default
+    const adminKey = secretKeys.default || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!shopId || !secret || !supabaseUrl || !adminKey) {
       throw new Error('Server credentials are not configured')
     }
