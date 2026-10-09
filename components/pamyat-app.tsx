@@ -28,7 +28,7 @@ const money=(n:number)=>n.toLocaleString('ru-RU')+' ₽'
 const careTitle=(c:Care)=>CARE.find(x=>x.code===c)?.title??LABEL[c]
 
 export function PamyatApp(){
- const[mode,setMode]=useState<Mode>('client'),[role,setRole]=useState<Mode|null>(null),[memorial,setMemorial]=useState<Memorial|null>(hasSupabase?null:demoMemorial),[cemeteries,setCemeteries]=useState<Cemetery[]>(hasSupabase?[]:demoCemeteries),[orders,setOrders]=useState<Order[]>(hasSupabase?[]:demoOrders),[care,setCare]=useState<Care>('three_to_six_months'),[modal,setModal]=useState<'order'|'login'|'memorial'|null>(null),[notice,setNotice]=useState(''),[email,setEmail]=useState(''),[busy,setBusy]=useState(false)
+ const[mode,setMode]=useState<Mode>('client'),[role,setRole]=useState<Mode|null>(null),[memorial,setMemorial]=useState<Memorial|null>(hasSupabase?null:demoMemorial),[memorials,setMemorials]=useState<Memorial[]>(hasSupabase?[]:[demoMemorial]),[cemeteries,setCemeteries]=useState<Cemetery[]>(hasSupabase?[]:demoCemeteries),[orders,setOrders]=useState<Order[]>(hasSupabase?[]:demoOrders),[care,setCare]=useState<Care>('three_to_six_months'),[modal,setModal]=useState<'order'|'login'|'memorial'|null>(null),[notice,setNotice]=useState(''),[email,setEmail]=useState(''),[busy,setBusy]=useState(false)
  const selected=useMemo(()=>CARE.find(x=>x.code===care)!,[care])
 
  useEffect(()=>{void load()},[])
@@ -41,9 +41,10 @@ export function PamyatApp(){
   const profile=await supabase.from('profiles').select('role').eq('id',u.data.user.id).maybeSingle()
   const userRole=(profile.data?.role as Mode|undefined) ?? 'client'
   setRole(userRole); setMode(userRole)
-  const [m,o]=await Promise.all([supabase.from('memorials').select('id,name,sector,row,place,last_care_at,care_level,cemeteries(name)').eq('client_id',u.data.user.id).order('created_at').limit(1),supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,services(name),memorials(name)').eq('client_id',u.data.user.id).order('created_at',{ascending:false})])
-  const mm=m.data?.[0] as any
-  setMemorial(mm?{id:mm.id,name:mm.name,sector:mm.sector??'',row:mm.row??'',place:mm.place??'',lastCare:mm.last_care_at?new Date(mm.last_care_at).toLocaleDateString('ru-RU'):'—',cemetery:mm.cemeteries?.name??'Кладбище',care:mm.care_level??null}:null)
+  const [m,o]=await Promise.all([supabase.from('memorials').select('id,name,sector,row,place,last_care_at,care_level,cemeteries(name)').eq('client_id',u.data.user.id).order('created_at',{ascending:false}),supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,services(name),memorials(name)').eq('client_id',u.data.user.id).order('created_at',{ascending:false})])
+  const mappedMemorials=(m.data??[]).map((mm:any)=>({id:mm.id,name:mm.name,sector:mm.sector??'',row:mm.row??'',place:mm.place??'',lastCare:mm.last_care_at?new Date(mm.last_care_at).toLocaleDateString('ru-RU'):'—',cemetery:mm.cemeteries?.name??'Кладбище',care:mm.care_level??null} as Memorial))
+  setMemorials(mappedMemorials)
+  setMemorial(current=>mappedMemorials.find(x=>x.id===current?.id)??mappedMemorials[0]??null)
   if(o.data)setOrders(o.data.map((x:any)=>({id:x.id,memorial:x.memorials?.name??'Место памяти',service:x.services?.name??'Уход',amount:Number(x.amount_rub),date:x.visit_date?new Date(x.visit_date).toLocaleDateString('ru-RU'):'—',status:x.status,care:x.care_level??'unknown'})))
  }
 
@@ -54,7 +55,7 @@ export function PamyatApp(){
   const cemeteryId=String(fd.get('cemetery_id')||'')
   if(!name||!cemeteryId){setNotice('Укажите имя и кладбище.');return}
   if(!supabase){
-   setMemorial({id:'demo-'+Date.now(),name,cemetery:cemeteries.find(x=>x.id===cemeteryId)?.name??'Кладбище',sector:String(fd.get('sector')||''),row:String(fd.get('row')||''),place:String(fd.get('place')||''),lastCare:'—'})
+   const added:Memorial={id:'demo-'+Date.now(),name,cemetery:cemeteries.find(x=>x.id===cemeteryId)?.name??'Кладбище',sector:String(fd.get('sector')||''),row:String(fd.get('row')||''),place:String(fd.get('place')||''),lastCare:'—'};setMemorial(added);setMemorials(items=>[added,...items.filter(x=>x.id!==added.id)])
    setModal(null);setNotice('Место памяти добавлено. Теперь можно оформить заказ.');return
   }
   const u=await supabase.auth.getUser()
@@ -64,8 +65,8 @@ export function PamyatApp(){
    const r=await supabase.from('memorials').insert({client_id:u.data.user.id,cemetery_id:cemeteryId,name,sector:String(fd.get('sector')||''),row:String(fd.get('row')||''),place:String(fd.get('place')||'')}).select('id,name,sector,row,place,cemeteries(name)').single()
    if(r.error)throw r.error
    const x:any=r.data
-   setMemorial({id:x.id,name:x.name,sector:x.sector??'',row:x.row??'',place:x.place??'',lastCare:'—',cemetery:x.cemeteries?.name??'Кладбище'})
-   setModal(null);setNotice('Место памяти сохранено. Теперь можно оформить заказ.');await load()
+   const added:Memorial={id:x.id,name:x.name,sector:x.sector??'',row:x.row??'',place:x.place??'',lastCare:'—',cemetery:x.cemeteries?.name??'Кладбище'};setMemorial(added);setMemorials(items=>[added,...items.filter(item=>item.id!==added.id)])
+   setModal(null);setNotice('Место памяти сохранено. Теперь можно оформить заказ.')
   }catch(err){setNotice(err instanceof Error?err.message:'Не удалось сохранить место памяти')}finally{setBusy(false)}
  }
 
@@ -83,7 +84,7 @@ export function PamyatApp(){
  }catch(err){setNotice(err instanceof Error?err.message:'Не удалось создать заказ')}finally{setBusy(false)}
  }
  return <div><header className="top"><div className="container topin"><a className="brandmark" href="/" aria-label="ПАМЯТЬ"><img src="/logo.svg" alt="ПАМЯТЬ" /></a><button className="mode" onClick={()=>setModal('login')}>{hasSupabase?'Войти':'DEMO MODE'}</button></div></header>
- <main className="container"><section className="hero"><div className="eyebrow">Новосибирск</div><h1>Уход за местом памяти, когда вы не можете приехать сами.</h1><p className="lead">Уборка, фото ДО/ПОСЛЕ и история посещений в одном месте. Фото клиента необязательно.</p><div className="switcher">{hasSupabase ? <span className="status green">Режим: {role==='admin'?'Администратор':role==='executor'?'Исполнитель':'Клиент'}</span> : <><button className={mode==='client'?'primary':'secondary'} onClick={()=>setMode('client')}>Клиент</button><button className={mode==='executor'?'primary':'secondary'} onClick={()=>setMode('executor')}>Исполнитель</button><button className={mode==='admin'?'primary':'secondary'} onClick={()=>setMode('admin')}>Администратор</button></>}</div></section>{mode==='client'?<ClientView memorial={memorial} orders={orders} care={care} setCare={setCare} selected={selected} onOrder={()=>setModal('order')} onAddMemorial={()=>setModal('memorial')} />:mode==='executor'?<ExecutorView notice={setNotice}/>:<AdminView orders={orders} />}</main>
+ <main className="container"><section className="hero"><div className="eyebrow">Новосибирск</div><h1>Уход за местом памяти, когда вы не можете приехать сами.</h1><p className="lead">Уборка, фото ДО/ПОСЛЕ и история посещений в одном месте. Фото клиента необязательно.</p><div className="switcher">{hasSupabase ? <span className="status green">Режим: {role==='admin'?'Администратор':role==='executor'?'Исполнитель':'Клиент'}</span> : <><button className={mode==='client'?'primary':'secondary'} onClick={()=>setMode('client')}>Клиент</button><button className={mode==='executor'?'primary':'secondary'} onClick={()=>setMode('executor')}>Исполнитель</button><button className={mode==='admin'?'primary':'secondary'} onClick={()=>setMode('admin')}>Администратор</button></>}</div></section>{mode==='client'?<ClientView memorial={memorial} orders={orders} care={care} setCare={setCare} selected={selected} onOrder={()=>setModal('order')} onAddMemorial={()=>setModal('memorial')} memorials={memorials} onSelectMemorial={setMemorial} />:mode==='executor'?<ExecutorView notice={setNotice}/>:<AdminView orders={orders} />}</main>
  {notice&&<div className="modalbg" onClick={()=>setNotice('')}><div className="modal" onClick={e=>e.stopPropagation()}><h3>Готово</h3><p className="lead">{notice}</p><button className="primary" onClick={()=>setNotice('')}>Понятно</button></div></div>}
  {modal==='login'&&<div className="modalbg" onClick={()=>setModal(null)}><form className="modal form" onSubmit={login} onClick={e=>e.stopPropagation()}><h3>Вход</h3><div className="field"><span>Email</span><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></div><button className="primary" disabled={busy}>{busy?'Отправляем…':'Получить ссылку для входа'}</button></form></div>}
  {modal==='memorial'&&<div className="modalbg" onClick={()=>setModal(null)}><form className="modal form" onSubmit={createMemorial} onClick={e=>e.stopPropagation()}><h3>Добавить место памяти</h3><p className="muted">Укажите данные, которые помогут исполнителю найти захоронение.</p><div className="field"><span>Имя или подпись места</span><input name="name" required placeholder="Например, Мария Ивановна"/></div><div className="field"><span>Кладбище</span><select name="cemetery_id" required defaultValue=""><option value="" disabled>Выберите кладбище</option>{cemeteries.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div><div className="meta"><div className="field"><span>Сектор</span><input name="sector" placeholder="24"/></div><div className="field"><span>Ряд</span><input name="row" placeholder="8"/></div><div className="field"><span>Место</span><input name="place" placeholder="17"/></div></div><button className="primary" disabled={busy}>{busy?'Сохраняем…':'Сохранить место'}</button></form></div>}
@@ -91,8 +92,9 @@ export function PamyatApp(){
  <footer className="footer"><div className="container">ПАМЯТЬ · уход за местами захоронения · Новосибирск</div></footer></div>
 }
 
-function ClientView(p:{memorial:Memorial|null;orders:Order[];care:Care;setCare:(x:Care)=>void;selected:CareOpt;onOrder:()=>void;onAddMemorial:()=>void}){
+function ClientView(p:{memorial:Memorial|null;memorials:Memorial[];onSelectMemorial:(m:Memorial)=>void;orders:Order[];care:Care;setCare:(x:Care)=>void;selected:CareOpt;onOrder:()=>void;onAddMemorial:()=>void}){
  return <section className="grid">
+  {p.memorials.length>1&&<div className="card"><div className="label">Мои места памяти</div><div className="switcher">{p.memorials.map(m=><button key={m.id} className={p.memorial?.id===m.id?'primary':'secondary'} onClick={()=>p.onSelectMemorial(m)}>{m.name}</button>)}</div></div>}
   {p.memorial?<div className="card"><div className="cardhead"><div><div className="label">Место памяти</div><div className="name">{p.memorial.name}</div></div><span className="tag">{p.memorial.lastCare==='—'?'Новый заказ':'На контроле'}</span></div><div className="muted">{p.memorial.cemetery}</div><div className="meta"><div><span className="label">Сектор</span><b>{p.memorial.sector||'—'}</b></div><div><span className="label">Ряд</span><b>{p.memorial.row||'—'}</b></div><div><span className="label">Место</span><b>{p.memorial.place||'—'}</b></div></div><div className="actions"><button className="primary" onClick={p.onOrder}>Заказать уход</button><button className="secondary" onClick={p.onAddMemorial}>Добавить ещё место</button></div></div>:<div className="card"><div className="label">Личный кабинет</div><div className="name">Добавьте место памяти</div><p className="muted">Сохраните кладбище и данные захоронения, чтобы оформить заказ и вести историю посещений.</p><button className="primary" onClick={p.onAddMemorial}>Добавить место памяти</button></div>}
   <div className="card"><div className="cardhead"><h3>Как давно ухаживали?</h3><span className="status green">{money(p.selected.price)}</span></div>{CARE.map(x=><button key={x.code} className={'choice '+(p.care===x.code?'sel':'')} onClick={()=>p.setCare(x.code)}><b>{x.title}</b><div className="small muted">{x.description}</div></button>)}<p className="small muted">Фото места добавлять не нужно. После визита исполнитель загрузит обязательные фото ДО/ПОСЛЕ.</p></div>
   <div className="card"><div className="cardhead"><h3>История</h3><span className="status">Фото ДО/ПОСЛЕ</span></div>{p.orders.length===0?<p className="muted">История заказов появится здесь после первого заказа.</p>:<div className="timeline">{p.orders.map(o=><div className="event" key={o.id}><strong>{o.service} · {money(o.amount)}</strong><span className="small muted">{o.date} · {STATUS[o.status]}</span></div>)}</div>}</div>
