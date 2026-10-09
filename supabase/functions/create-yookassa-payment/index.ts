@@ -38,8 +38,22 @@ Deno.serve(async (req) => {
       .maybeSingle()
     if (orderError || !order) return response({ error: 'Order not found' }, 404)
     if (order.client_id !== user.id) return response({ error: 'Forbidden' }, 403)
-    if (!['draft', 'awaiting_payment'].includes(order.status)) {
+    if (!['draft', 'awaiting_payment', 'cancelled'].includes(order.status)) {
       return response({ error: 'Order cannot be paid in its current status' }, 409)
+    }
+
+    if (order.status === 'cancelled') {
+      const { data: canceledAttempt, error: canceledError } = await sb
+        .from('payments')
+        .select('id')
+        .eq('order_id', order.id)
+        .eq('status', 'canceled')
+        .limit(1)
+        .maybeSingle()
+      if (canceledError) throw canceledError
+      if (!canceledAttempt) {
+        return response({ error: 'Only orders with a canceled payment can be paid again' }, 409)
+      }
     }
 
     const { data: existing, error: existingError } = await sb
@@ -53,6 +67,13 @@ Deno.serve(async (req) => {
     if (existingError) throw existingError
     if (existing) {
       if (existing.confirmation_url && existing.amount_rub === order.amount_rub) {
+        if (order.status === 'cancelled') {
+          const { error: reopenError } = await sb.from('orders')
+            .update({ status: 'awaiting_payment' })
+            .eq('id', order.id)
+            .eq('status', 'cancelled')
+          if (reopenError) throw reopenError
+        }
         return response({
           payment_id: existing.provider_payment_id,
           confirmation_url: existing.confirmation_url,
@@ -127,7 +148,7 @@ Deno.serve(async (req) => {
     const { error: updateOrderError } = await sb.from('orders')
       .update({ status: 'awaiting_payment' })
       .eq('id', order.id)
-      .in('status', ['draft', 'awaiting_payment'])
+      .in('status', ['draft', 'awaiting_payment', 'cancelled'])
     if (updateOrderError) throw updateOrderError
 
     return response({ payment_id: payment.id, confirmation_url: confirmationUrl })
