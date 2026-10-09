@@ -402,7 +402,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists(
     select 1 from public.profiles p
@@ -441,3 +441,10 @@ begin
 end $$;
 
 revoke execute on function public.is_admin() from public, anon, authenticated;
+
+
+-- Trigger-only functions should not be callable as RPC functions.
+revoke execute on function public.touch_updated_at() from public, anon, authenticated;
+
+-- The helper uses fully-qualified table/function names, so an empty search path is safest.
+alter function private.is_admin() set search_path = '';
