@@ -1,8 +1,27 @@
 # Подключение ПАМЯТЬ к Supabase
 
+## Текущий проект
+
+Отдельный проект ПАМЯТЬ уже создан и настроен. Не подключайте ROAD LIVE, BOOKTOOM или другие приложения.
+
+- Project ref: `hrxcfzzkjsopdgeczihw`
+- Project URL: `https://hrxcfzzkjsopdgeczihw.supabase.co`
+- Region: `eu-west-2`
+- Схема, политики RLS, приватное хранилище фотографий и миграции безопасности уже применены.
+- Две Edge Functions YooKassa развёрнуты. Платежи не готовы к production, пока не будут заданы секреты провайдера и URL сайта.
+
+Публичные переменные клиента для локального окружения и Vercel:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://hrxcfzzkjsopdgeczihw.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_Ubp8wgsHJEF8iW6EnLGeiw_GD3P6L3E
+```
+
+Publishable key предназначен для браузера и не заменяет секретный серверный ключ. Никогда не помещайте секретные ключи в `NEXT_PUBLIC_*`.
+
 ## Новый отдельный проект
 
-Не используйте проект ROAD LIVE, BOOKTOOM или другой продукт. Создайте отдельный Supabase project для ПАМЯТЬ.
+Для повторного развёртывания создайте отдельный Supabase project для ПАМЯТЬ. Не используйте проект ROAD LIVE, BOOKTOOM или другой продукт.
 
 1. В SQL Editor нового проекта выполните весь файл `supabase/schema.sql` из этого репозитория.
 2. В Authentication включите вход по email-ссылке и укажите URL сайта в Redirect URLs.
