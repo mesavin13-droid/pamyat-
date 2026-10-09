@@ -51,20 +51,31 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle()
     if (existingError) throw existingError
-    if (existing?.confirmation_url && existing.amount_rub === order.amount_rub) {
-      return response({
-        payment_id: existing.provider_payment_id,
-        confirmation_url: existing.confirmation_url,
-        reused: true,
-      })
+    if (existing) {
+      if (existing.confirmation_url && existing.amount_rub === order.amount_rub) {
+        return response({
+          payment_id: existing.provider_payment_id,
+          confirmation_url: existing.confirmation_url,
+          reused: true,
+        })
+      }
+      return response({ error: 'An active payment attempt already exists but cannot be resumed' }, 409)
     }
+
+    // Keep one stable key per attempt. Retries reuse the next attempt number until its
+    // payment row is stored; a later attempt after a canceled payment gets a fresh key.
+    const { data: priorAttempts, error: attemptsError } = await sb
+      .from('payments')
+      .select('id')
+      .eq('order_id', order.id)
+    if (attemptsError) throw attemptsError
+    const idempotencyKey = 'pamyat-order-' + order.id + '-' + ((priorAttempts?.length ?? 0) + 1)
 
     const shop = Deno.env.get('YOOKASSA_SHOP_ID')
     const secret = Deno.env.get('YOOKASSA_SECRET_KEY')
     const site = Deno.env.get('SITE_URL')
     if (!shop || !secret || !site) throw new Error('Payment provider secrets are not configured')
 
-    const idempotencyKey = 'pamyat-order-' + order.id
     const yk = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
       headers: {
