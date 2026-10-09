@@ -35,7 +35,7 @@ Deno.serve(async (req)=>{
       }),{headers:{...cors,'Content-Type':'application/json'}})
     }
 
-    const idem=crypto.randomUUID()
+    const idem='pamyat-order-'+order.id
     const shop=Deno.env.get('YOOKASSA_SHOP_ID')
     const secret=Deno.env.get('YOOKASSA_SECRET_KEY')
     const site=Deno.env.get('SITE_URL')
