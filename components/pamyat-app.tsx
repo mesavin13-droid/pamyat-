@@ -161,12 +161,13 @@ function AdminView({orders}:{orders:Order[]}){
  useEffect(()=>{void load()},[])
  async function load(){
   if(!supabase)return
-  const me=await supabase.auth.getUser()
+  const client=supabase
+  const me=await client.auth.getUser()
   setCurrentUserId(me.data.user?.id??null)
   const [oq,pq,photos]=await Promise.all([
-   supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,executor_id,memorials(name),services(name)').order('created_at',{ascending:false}),
-   supabase.from('profiles').select('id,full_name,role').order('full_name'),
-   supabase.from('order_photos').select('order_id,kind,storage_path').in('kind',['before','after'])
+   client.from('orders').select('id,status,visit_date,amount_rub,care_level,executor_id,memorials(name),services(name)').order('created_at',{ascending:false}),
+   client.from('profiles').select('id,full_name,role').order('full_name'),
+   client.from('order_photos').select('order_id,kind,storage_path').in('kind',['before','after'])
   ])
   if(oq.data)setLiveOrders(oq.data.map((x:any)=>({id:x.id,memorial:x.memorials?.name??'Место памяти',service:x.services?.name??'Уход',amount:Number(x.amount_rub),date:x.visit_date?new Date(x.visit_date).toLocaleDateString('ru-RU'):'—',status:x.status,care:x.care_level??'unknown'})))
   if(pq.data){
@@ -175,7 +176,7 @@ function AdminView({orders}:{orders:Order[]}){
   }
   if(photos.data){
    const results=await Promise.all(photos.data.map(async (p:any)=>{
-    const signed=await supabase.storage.from('order-photos').createSignedUrl(p.storage_path,3600)
+    const signed=await client.storage.from('order-photos').createSignedUrl(p.storage_path,3600)
     return {orderId:p.order_id,kind:p.kind,url:signed.data?.signedUrl}
    }))
    const map:Record<string,{before?:string;after?:string}>={}
@@ -186,21 +187,21 @@ function AdminView({orders}:{orders:Order[]}){
  async function assign(orderId:string,executorId:string){
   if(!supabase)return
   setBusy(orderId)
-  const q=await supabase.from('orders').update({executor_id:executorId||null,status:executorId?'assigned':'paid'}).eq('id',orderId).in('status',['paid','assigned'])
+  const q=await client.from('orders').update({executor_id:executorId||null,status:executorId?'assigned':'paid'}).eq('id',orderId).in('status',['paid','assigned'])
   setBusy(null)
   if(q.error)alert(q.error.message); else await load()
  }
  async function changeRole(userId:string,role:Mode){
   if(!supabase||userId===currentUserId)return
   setBusy('staff-'+userId)
-  const q=await supabase.from('profiles').update({role}).eq('id',userId)
+  const q=await client.from('profiles').update({role}).eq('id',userId)
   setBusy(null)
   if(q.error)alert(q.error.message); else await load()
  }
  async function complete(orderId:string){
   if(!supabase)return
   setBusy(orderId)
-  const q=await supabase.from('orders').update({status:'completed'}).eq('id',orderId).eq('status','review')
+  const q=await client.from('orders').update({status:'completed'}).eq('id',orderId).eq('status','review')
   setBusy(null)
   if(q.error)alert(q.error.message); else await load()
  }
