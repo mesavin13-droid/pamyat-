@@ -1,8 +1,8 @@
 # ПАМЯТЬ — Edge Functions config
-# These functions validate auth themselves and/or are called by ЮKassa.
+# Payment creation validates the caller's Supabase session; the provider webhook validates payment directly with YooKassa.
 
 [functions.create-yookassa-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.yookassa-webhook]
 verify_jwt = false
