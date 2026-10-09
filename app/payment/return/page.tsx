@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect,useState} from 'react'
+import {Suspense,useEffect,useState} from 'react'
 import {useSearchParams} from 'next/navigation'
 import {supabase} from '@/lib/supabase'
 
@@ -18,6 +18,10 @@ const labels:Record<string,string>={
 }
 
 export default function PaymentReturn(){
+ return <Suspense fallback={<main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f4f1e9'}}>Проверяем оплату…</main>}><PaymentReturnContent /></Suspense>
+}
+
+function PaymentReturnContent(){
  const params=useSearchParams()
  const orderId=params.get('order_id')
  const[status,setStatus]=useState('awaiting_payment')
