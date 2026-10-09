@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     if (!token) return response({ error: 'Unauthorized' }, 401)
 
     const secretKeys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}')
-    const adminKey = secretKeys.default || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const adminKey = secretKeys.default
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     if (!adminKey || !supabaseUrl) throw new Error('Supabase server credentials are not configured')
 
