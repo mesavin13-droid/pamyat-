@@ -71,17 +71,48 @@ export function PamyatApp(){
  }
 
  async function login(e:FormEvent){e.preventDefault();if(!supabase){setModal(null);setNotice('Демо-режим: Supabase ещё не подключён.');return}setBusy(true);const r=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});setBusy(false);setModal(null);setNotice(r.error?.message??'Ссылка для входа отправлена на почту.')}
- async function createOrder(e:FormEvent){e.preventDefault();const fd=new FormData(e.currentTarget as HTMLFormElement);if(!memorial){setModal('memorial');return}const visitDate=String(fd.get('visit_date')||'')||null;const comment=String(fd.get('comment')||'');if(!supabase){setOrders(x=>[{id:'DEMO-'+Date.now().toString().slice(-5),memorial:memorial.name,service:selected.code==='regular'?'Лёгкий уход':selected.code==='three_to_six_months'?'Полный уход':selected.code==='six_to_twelve_months'?'Тщательный уход':selected.code==='over_year'?'Глубокий уход':'Полный уход',amount:selected.price,date:new Date().toLocaleDateString('ru-RU'),status:'awaiting_payment',care},...x]);setModal(null);setNotice('Заявка создана. Предварительная стоимость '+money(selected.price)+'.');return}
- const u=await supabase.auth.getUser();if(!u.data.user){setModal('login');return}
- setBusy(true)
- try{
-  const r=await supabase.from('orders').insert({client_id:u.data.user.id,memorial_id:memorial.id,care_level:care,service_id:null,amount_rub:selected.price,status:'draft',visit_date:visitDate,comment}).select().single()
-  if(r.error)throw r.error
-  const payment=await supabase.functions.invoke('create-yookassa-payment',{body:{order_id:r.data.id}})
-  if(payment.error)throw payment.error
-  if(payment.data?.confirmation_url){ window.location.href=payment.data.confirmation_url; return }
-  setNotice('Заявка создана. Ссылка на оплату пока недоступна.');setModal(null);await load()
- }catch(err){setNotice(err instanceof Error?err.message:'Не удалось создать заказ')}finally{setBusy(false)}
+ async function createOrder(e:FormEvent){
+  e.preventDefault()
+  const fd=new FormData(e.currentTarget as HTMLFormElement)
+  if(!memorial){setModal('memorial');return}
+  const visitDate=String(fd.get('visit_date')||'')||null
+  const comment=String(fd.get('comment')||'')
+
+  if(!supabase){
+   setOrders(x=>[{id:'DEMO-'+Date.now().toString().slice(-5),memorial:memorial.name,service:selected.code==='regular'?'Лёгкий уход':selected.code==='three_to_six_months'?'Полный уход':selected.code==='six_to_twelve_months'?'Тщательный уход':selected.code==='over_year'?'Глубокий уход':'Полный уход',amount:selected.price,date:new Date().toLocaleDateString('ru-RU'),status:'awaiting_payment',care},...x])
+   setModal(null)
+   setNotice('Заявка создана. Предварительная стоимость '+money(selected.price)+'.')
+   return
+  }
+
+  const u=await supabase.auth.getUser()
+  if(!u.data.user){setModal('login');return}
+  setBusy(true)
+  let createdOrderId:string|null=null
+  try{
+   const r=await supabase.from('orders').insert({client_id:u.data.user.id,memorial_id:memorial.id,care_level:care,service_id:null,amount_rub:selected.price,status:'draft',visit_date:visitDate,comment}).select().single()
+   if(r.error)throw r.error
+   createdOrderId=r.data.id
+
+   const payment=await supabase.functions.invoke('create-yookassa-payment',{body:{order_id:createdOrderId}})
+   if(payment.error)throw payment.error
+   if(payment.data?.confirmation_url){window.location.href=payment.data.confirmation_url;return}
+
+   setModal(null)
+   await load()
+   setNotice('Заявка сохранена, но ссылка на оплату пока недоступна. Заказ не потерян.')
+  }catch(err){
+   const message=err instanceof Error?err.message:'Не удалось создать заказ'
+   if(createdOrderId){
+    setModal(null)
+    await load()
+    setNotice('Заявка сохранена, но оплату открыть не удалось. '+message)
+   }else{
+    setNotice(message)
+   }
+  }finally{
+   setBusy(false)
+  }
  }
  return <div><header className="top"><div className="container topin"><a className="brandmark" href="/" aria-label="ПАМЯТЬ"><img src="/logo-horizontal.svg" alt="ПАМЯТЬ" /></a><button className="mode" onClick={()=>{if(supabase&&role!==null){void supabase.auth.signOut();setRole(null);setMode('client');setMemorial(null);setMemorials([]);setOrders([])}else setModal('login')}}>{hasSupabase?(role!==null?'Выйти':'Войти'):'DEMO MODE'}</button></div></header>
  <main className="container"><section className="hero"><div className="eyebrow">Новосибирск</div><h1>Уход за местом памяти, когда вы не можете приехать сами.</h1><p className="lead">Уборка, фото ДО/ПОСЛЕ и история посещений в одном месте. Фото клиента необязательно.</p><div className="switcher">{hasSupabase ? <span className="status green">Режим: {role==='admin'?'Администратор':role==='executor'?'Исполнитель':'Клиент'}</span> : <><button className={mode==='client'?'primary':'secondary'} onClick={()=>setMode('client')}>Клиент</button><button className={mode==='executor'?'primary':'secondary'} onClick={()=>setMode('executor')}>Исполнитель</button><button className={mode==='admin'?'primary':'secondary'} onClick={()=>setMode('admin')}>Администратор</button></>}</div></section>{mode==='client'?<ClientView memorial={memorial} orders={orders} care={care} setCare={setCare} selected={selected} onOrder={()=>setModal('order')} onAddMemorial={()=>setModal('memorial')} memorials={memorials} onSelectMemorial={setMemorial} />:mode==='executor'?<ExecutorView notice={setNotice}/>:<AdminView orders={orders} />}</main>
