@@ -59,7 +59,7 @@ export function PamyatApp(){
    setModal(null);setNotice('Место памяти добавлено. Теперь можно оформить заказ.');return
   }
   const u=await supabase.auth.getUser()
-  if(!u.data.user){setModal('login');setNotice('Сначала войдите в аккаунт, затем добавьте место памяти.');return}
+  if(!u.data.user){setModal('login');return}
   setBusy(true)
   try{
    const r=await supabase.from('memorials').insert({client_id:u.data.user.id,cemetery_id:cemeteryId,name,sector:String(fd.get('sector')||''),row:String(fd.get('row')||''),place:String(fd.get('place')||'')}).select('id,name,sector,row,place,cemeteries(name)').single()
@@ -70,7 +70,7 @@ export function PamyatApp(){
   }catch(err){setNotice(err instanceof Error?err.message:'Не удалось сохранить место памяти')}finally{setBusy(false)}
  }
 
- async function login(e:FormEvent){e.preventDefault();if(!supabase){setNotice('Демо-режим: Supabase ещё не подключён.');return}setBusy(true);const r=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});setBusy(false);setNotice(r.error?.message??'Ссылка для входа отправлена на почту.')}
+ async function login(e:FormEvent){e.preventDefault();if(!supabase){setModal(null);setNotice('Демо-режим: Supabase ещё не подключён.');return}setBusy(true);const r=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});setBusy(false);setModal(null);setNotice(r.error?.message??'Ссылка для входа отправлена на почту.')}
  async function createOrder(e:FormEvent){e.preventDefault();const fd=new FormData(e.currentTarget as HTMLFormElement);if(!memorial){setModal('memorial');return}const visitDate=String(fd.get('visit_date')||'')||null;const comment=String(fd.get('comment')||'');if(!supabase){setOrders(x=>[{id:'DEMO-'+Date.now().toString().slice(-5),memorial:memorial.name,service:selected.code==='regular'?'Лёгкий уход':selected.code==='three_to_six_months'?'Полный уход':selected.code==='six_to_twelve_months'?'Тщательный уход':selected.code==='over_year'?'Глубокий уход':'Полный уход',amount:selected.price,date:new Date().toLocaleDateString('ru-RU'),status:'awaiting_payment',care},...x]);setModal(null);setNotice('Заявка создана. Предварительная стоимость '+money(selected.price)+'.');return}
  const u=await supabase.auth.getUser();if(!u.data.user){setModal('login');return}
  setBusy(true)
