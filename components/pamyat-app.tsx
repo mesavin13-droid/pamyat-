@@ -18,6 +18,7 @@ const CARE:CareOpt[]=[
 ]
 const LABEL:Record<Care,string>={regular:'Ухаживаем регулярно',three_to_six_months:'3–6 месяцев назад',six_to_twelve_months:'6–12 месяцев назад',over_year:'Больше года назад',unknown:'Не знаю'}
 const STATUS:Record<string,string>={draft:'Черновик',awaiting_payment:'Ожидает оплаты',paid:'Оплачен',assigned:'Назначен',before_photos:'Фото ДО',in_progress:'В работе',after_photos:'Фото ПОСЛЕ',review:'Проверка',completed:'Завершён',cancelled:'Отменён'}
+const demoCemeteries:Cemetery[]=[{id:'demo-kleshch',name:'Клещихинское кладбище'},{id:'demo-zael',name:'Заельцовское кладбище'},{id:'demo-gusin',name:'Гусинобродское кладбище'}]
 const demoMemorial:Memorial={id:'demo',name:'Мария Ивановна',cemetery:'Клещихинское кладбище',sector:'24',row:'8',place:'17',lastCare:'12.09.2026',care:'regular'}
 const demoOrders:Order[]=[
 {id:'P-1047',memorial:'Мария Ивановна',service:'Полный уход',amount:4290,date:'12.09.2026',status:'completed',care:'three_to_six_months'},
@@ -27,7 +28,7 @@ const money=(n:number)=>n.toLocaleString('ru-RU')+' ₽'
 const careTitle=(c:Care)=>CARE.find(x=>x.code===c)?.title??LABEL[c]
 
 export function PamyatApp(){
- const[mode,setMode]=useState<Mode>('client'),[role,setRole]=useState<Mode|null>(null),[memorial,setMemorial]=useState<Memorial|null>(hasSupabase?null:demoMemorial),[cemeteries,setCemeteries]=useState<Cemetery[]>([]),[orders,setOrders]=useState<Order[]>(hasSupabase?[]:demoOrders),[care,setCare]=useState<Care>('three_to_six_months'),[modal,setModal]=useState<'order'|'login'|'memorial'|null>(null),[notice,setNotice]=useState(''),[email,setEmail]=useState(''),[busy,setBusy]=useState(false)
+ const[mode,setMode]=useState<Mode>('client'),[role,setRole]=useState<Mode|null>(null),[memorial,setMemorial]=useState<Memorial|null>(hasSupabase?null:demoMemorial),[cemeteries,setCemeteries]=useState<Cemetery[]>(hasSupabase?[]:demoCemeteries),[orders,setOrders]=useState<Order[]>(hasSupabase?[]:demoOrders),[care,setCare]=useState<Care>('three_to_six_months'),[modal,setModal]=useState<'order'|'login'|'memorial'|null>(null),[notice,setNotice]=useState(''),[email,setEmail]=useState(''),[busy,setBusy]=useState(false)
  const selected=useMemo(()=>CARE.find(x=>x.code===care)!,[care])
 
  useEffect(()=>{void load()},[])
@@ -43,12 +44,35 @@ export function PamyatApp(){
   setMemorial(mm?{id:mm.id,name:mm.name,sector:mm.sector??'',row:mm.row??'',place:mm.place??'',lastCare:mm.last_care_at?new Date(mm.last_care_at).toLocaleDateString('ru-RU'):'—',cemetery:mm.cemeteries?.name??'Кладбище',care:mm.care_level??null}:null)
   if(o.data)setOrders(o.data.map((x:any)=>({id:x.id,memorial:x.memorials?.name??'Место памяти',service:x.services?.name??'Уход',amount:Number(x.amount_rub),date:x.visit_date?new Date(x.visit_date).toLocaleDateString('ru-RU'):'—',status:x.status,care:x.care_level??'unknown'})))
  }
+
+ async function createMemorial(e:FormEvent){
+  e.preventDefault()
+  const fd=new FormData(e.currentTarget as HTMLFormElement)
+  const name=String(fd.get('name')||'').trim()
+  const cemeteryId=String(fd.get('cemetery_id')||'')
+  if(!name||!cemeteryId){setNotice('Укажите имя и кладбище.');return}
+  if(!supabase){
+   setMemorial({id:'demo-'+Date.now(),name,cemetery:cemeteries.find(x=>x.id===cemeteryId)?.name??'Кладбище',sector:String(fd.get('sector')||''),row:String(fd.get('row')||''),place:String(fd.get('place')||''),lastCare:'—'})
+   setModal(null);setNotice('Место памяти добавлено. Теперь можно оформить заказ.');return
+  }
+  const u=await supabase.auth.getUser()
+  if(!u.data.user){setModal('login');setNotice('Сначала войдите в аккаунт, затем добавьте место памяти.');return}
+  setBusy(true)
+  try{
+   const r=await supabase.from('memorials').insert({client_id:u.data.user.id,cemetery_id:cemeteryId,name,sector:String(fd.get('sector')||''),row:String(fd.get('row')||''),place:String(fd.get('place')||'')}).select('id,name,sector,row,place,cemeteries(name)').single()
+   if(r.error)throw r.error
+   const x:any=r.data
+   setMemorial({id:x.id,name:x.name,sector:x.sector??'',row:x.row??'',place:x.place??'',lastCare:'—',cemetery:x.cemeteries?.name??'Кладбище'})
+   setModal(null);setNotice('Место памяти сохранено. Теперь можно оформить заказ.');await load()
+  }catch(err){setNotice(err instanceof Error?err.message:'Не удалось сохранить место памяти')}finally{setBusy(false)}
+ }
+
  async function login(e:FormEvent){e.preventDefault();if(!supabase){setNotice('Демо-режим: Supabase ещё не подключён.');return}setBusy(true);const r=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});setBusy(false);setNotice(r.error?.message??'Ссылка для входа отправлена на почту.')}
- async function createOrder(e:FormEvent){e.preventDefault();if(!supabase){setOrders(x=>[{id:'DEMO-'+Date.now().toString().slice(-5),memorial:memorial.name,service:selected.code==='regular'?'Лёгкий уход':selected.code==='three_to_six_months'?'Полный уход':selected.code==='six_to_twelve_months'?'Тщательный уход':selected.code==='over_year'?'Глубокий уход':'Полный уход',amount:selected.price,date:new Date().toLocaleDateString('ru-RU'),status:'awaiting_payment',care},...x]);setModal(null);setNotice('Заявка создана. Предварительная стоимость '+money(selected.price)+'.');return}
+ async function createOrder(e:FormEvent){e.preventDefault();const fd=new FormData(e.currentTarget as HTMLFormElement);if(!memorial){setModal('memorial');return}const visitDate=String(fd.get('visit_date')||'')||null;const comment=String(fd.get('comment')||'');if(!supabase){setOrders(x=>[{id:'DEMO-'+Date.now().toString().slice(-5),memorial:memorial.name,service:selected.code==='regular'?'Лёгкий уход':selected.code==='three_to_six_months'?'Полный уход':selected.code==='six_to_twelve_months'?'Тщательный уход':selected.code==='over_year'?'Глубокий уход':'Полный уход',amount:selected.price,date:new Date().toLocaleDateString('ru-RU'),status:'awaiting_payment',care},...x]);setModal(null);setNotice('Заявка создана. Предварительная стоимость '+money(selected.price)+'.');return}
  const u=await supabase.auth.getUser();if(!u.data.user){setModal('login');return}
  setBusy(true)
  try{
-  const r=await supabase.from('orders').insert({client_id:u.data.user.id,memorial_id:memorial.id,care_level:care,service_id:null,amount_rub:selected.price,status:'draft',visit_date:(new FormData(e.currentTarget).get('visit_date')||null),comment:(new FormData(e.currentTarget).get('comment')||null)}).select().single()
+  const r=await supabase.from('orders').insert({client_id:u.data.user.id,memorial_id:memorial.id,care_level:care,service_id:null,amount_rub:selected.price,status:'draft',visit_date:visitDate,comment}).select().single()
   if(r.error)throw r.error
   const payment=await supabase.functions.invoke('create-yookassa-payment',{body:{order_id:r.data.id}})
   if(payment.error)throw payment.error
