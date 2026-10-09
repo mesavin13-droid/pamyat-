@@ -186,6 +186,7 @@ function AdminView({orders}:{orders:Order[]}){
  }
  async function assign(orderId:string,executorId:string){
   if(!supabase)return
+  const client=supabase
   setBusy(orderId)
   const q=await client.from('orders').update({executor_id:executorId||null,status:executorId?'assigned':'paid'}).eq('id',orderId).in('status',['paid','assigned'])
   setBusy(null)
@@ -193,6 +194,7 @@ function AdminView({orders}:{orders:Order[]}){
  }
  async function changeRole(userId:string,role:Mode){
   if(!supabase||userId===currentUserId)return
+  const client=supabase
   setBusy('staff-'+userId)
   const q=await client.from('profiles').update({role}).eq('id',userId)
   setBusy(null)
@@ -200,6 +202,7 @@ function AdminView({orders}:{orders:Order[]}){
  }
  async function complete(orderId:string){
   if(!supabase)return
+  const client=supabase
   setBusy(orderId)
   const q=await client.from('orders').update({status:'completed'}).eq('id',orderId).eq('status','review')
   setBusy(null)
