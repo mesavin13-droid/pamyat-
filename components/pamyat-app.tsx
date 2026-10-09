@@ -5,6 +5,7 @@ import {supabase,hasSupabase} from '@/lib/supabase'
 type Mode='client'|'executor'|'admin'
 type Care='regular'|'three_to_six_months'|'six_to_twelve_months'|'over_year'|'unknown'
 type Memorial={id:string;name:string;cemetery:string;sector:string;row:string;place:string;lastCare:string;care?:Care|null}
+type Cemetery={id:string;name:string}
 type Order={id:string;memorial:string;service:string;amount:number;date:string;status:string;care:Care}
 type CareOpt={code:Care;title:string;description:string;price:number}
 
@@ -16,7 +17,7 @@ const CARE:CareOpt[]=[
 {code:'unknown',title:'Не знаю',description:'Берём средний объём работ.',price:4290},
 ]
 const LABEL:Record<Care,string>={regular:'Ухаживаем регулярно',three_to_six_months:'3–6 месяцев назад',six_to_twelve_months:'6–12 месяцев назад',over_year:'Больше года назад',unknown:'Не знаю'}
-const STATUS:Record<string,string>={draft:'Черновик',awaiting_payment:'Ожидает оплаты',paid:'Оплачен',assigned:'Назначен',before_photos:'Фото ДО',in_progress:'В работе',after_photos:'Фото ПОСЛЕ',review:'Проверка',completed:'Завершён'}
+const STATUS:Record<string,string>={draft:'Черновик',awaiting_payment:'Ожидает оплаты',paid:'Оплачен',assigned:'Назначен',before_photos:'Фото ДО',in_progress:'В работе',after_photos:'Фото ПОСЛЕ',review:'Проверка',completed:'Завершён',cancelled:'Отменён'}
 const demoMemorial:Memorial={id:'demo',name:'Мария Ивановна',cemetery:'Клещихинское кладбище',sector:'24',row:'8',place:'17',lastCare:'12.09.2026',care:'regular'}
 const demoOrders:Order[]=[
 {id:'P-1047',memorial:'Мария Ивановна',service:'Полный уход',amount:4290,date:'12.09.2026',status:'completed',care:'three_to_six_months'},
@@ -26,7 +27,7 @@ const money=(n:number)=>n.toLocaleString('ru-RU')+' ₽'
 const careTitle=(c:Care)=>CARE.find(x=>x.code===c)?.title??LABEL[c]
 
 export function PamyatApp(){
- const[mode,setMode]=useState<Mode>('client'),[role,setRole]=useState<Mode|null>(null),[memorial,setMemorial]=useState<Memorial>(demoMemorial),[orders,setOrders]=useState<Order[]>(demoOrders),[care,setCare]=useState<Care>('three_to_six_months'),[modal,setModal]=useState<'order'|'login'|null>(null),[notice,setNotice]=useState(''),[email,setEmail]=useState(''),[busy,setBusy]=useState(false)
+ const[mode,setMode]=useState<Mode>('client'),[role,setRole]=useState<Mode|null>(null),[memorial,setMemorial]=useState<Memorial|null>(hasSupabase?null:demoMemorial),[cemeteries,setCemeteries]=useState<Cemetery[]>([]),[orders,setOrders]=useState<Order[]>(hasSupabase?[]:demoOrders),[care,setCare]=useState<Care>('three_to_six_months'),[modal,setModal]=useState<'order'|'login'|'memorial'|null>(null),[notice,setNotice]=useState(''),[email,setEmail]=useState(''),[busy,setBusy]=useState(false)
  const selected=useMemo(()=>CARE.find(x=>x.code===care)!,[care])
 
  useEffect(()=>{void load()},[])
@@ -36,10 +37,10 @@ export function PamyatApp(){
   const profile=await supabase.from('profiles').select('role').eq('id',u.data.user.id).maybeSingle()
   const userRole=(profile.data?.role as Mode|undefined) ?? 'client'
   setRole(userRole); setMode(userRole)
-  const m=await supabase.from('memorials').select('id,name,sector,row,place,last_care_at,care_level,cemeteries(name)').eq('client_id',u.data.user.id).order('created_at').limit(1)
-  const o=await supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,services(name),memorials(name)').eq('client_id',u.data.user.id).order('created_at',{ascending:false})
+  const [m,c,o]=await Promise.all([supabase.from('memorials').select('id,name,sector,row,place,last_care_at,care_level,cemeteries(name)').eq('client_id',u.data.user.id).order('created_at').limit(1),supabase.from('cemeteries').select('id,name').eq('active',true).order('name'),supabase.from('orders').select('id,status,visit_date,amount_rub,care_level,services(name),memorials(name)').eq('client_id',u.data.user.id).order('created_at',{ascending:false})])
+  if(c.data)setCemeteries(c.data as Cemetery[])
   const mm=m.data?.[0] as any
-  if(mm)setMemorial({id:mm.id,name:mm.name,sector:mm.sector??'',row:mm.row??'',place:mm.place??'',lastCare:mm.last_care_at?new Date(mm.last_care_at).toLocaleDateString('ru-RU'):'—',cemetery:mm.cemeteries?.name??'Кладбище',care:mm.care_level??null})
+  setMemorial(mm?{id:mm.id,name:mm.name,sector:mm.sector??'',row:mm.row??'',place:mm.place??'',lastCare:mm.last_care_at?new Date(mm.last_care_at).toLocaleDateString('ru-RU'):'—',cemetery:mm.cemeteries?.name??'Кладбище',care:mm.care_level??null}:null)
   if(o.data)setOrders(o.data.map((x:any)=>({id:x.id,memorial:x.memorials?.name??'Место памяти',service:x.services?.name??'Уход',amount:Number(x.amount_rub),date:x.visit_date?new Date(x.visit_date).toLocaleDateString('ru-RU'):'—',status:x.status,care:x.care_level??'unknown'})))
  }
  async function login(e:FormEvent){e.preventDefault();if(!supabase){setNotice('Демо-режим: Supabase ещё не подключён.');return}setBusy(true);const r=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});setBusy(false);setNotice(r.error?.message??'Ссылка для входа отправлена на почту.')}
