@@ -9,8 +9,11 @@
 - Region: `eu-west-2`
 - Схема, политики RLS, приватное хранилище фотографий и миграции безопасности уже применены.
 - Две Edge Functions YooKassa развёрнуты. Платежи не готовы к production, пока не будут заданы секреты провайдера и URL сайта.
+- Vercel production deployment: `READY`.
+- Сайт: https://pamyat-nsk.vercel.app
+- Vercel deployment details: https://vercel.com/dmitriy9/pamyat-nsk/Dbp7vEnvY4y2gK7aM5wVqCergD47
 
-Публичные переменные клиента для локального окружения и Vercel:
+Публичные переменные клиента уже добавлены в Vercel для production, preview и development. Для локального `.env.local` используются те же значения:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://hrxcfzzkjsopdgeczihw.supabase.co
@@ -24,7 +27,7 @@ Publishable key предназначен для браузера и не зам�
 Для повторного развёртывания создайте отдельный Supabase project для ПАМЯТЬ. Не используйте проект ROAD LIVE, BOOKTOOM или другой продукт.
 
 1. В SQL Editor нового проекта выполните весь файл `supabase/schema.sql` из этого репозитория.
-2. В Authentication включите вход по email-ссылке и укажите URL сайта в Redirect URLs.
+2. В Authentication → URL Configuration укажите **Site URL** `https://pamyat-nsk.vercel.app` и добавьте Redirect URLs `https://pamyat-nsk.vercel.app/**` и `http://localhost:3000/**`. Затем проверьте вход по email-ссылке.
 3. В Project Settings → API скопируйте Project URL и publishable key.
 4. Добавьте их в локальный `.env.local` и в секреты проекта Vercel:
 
@@ -53,13 +56,13 @@ where p.id = u.id
 
 ## Оплата YooKassa
 
-Добавьте secrets в Supabase Edge Functions, не в Git:
+Откройте Supabase → Edge Functions → Secrets и добавьте только на сервере:
 
-- `YOOKASSA_SHOP_ID`
-- `YOOKASSA_SECRET_KEY`
-- `SITE_URL` — полный URL production-сайта
+- `YOOKASSA_SHOP_ID` — ID магазина из кабинета YooKassa
+- `YOOKASSA_SECRET_KEY` — секретный ключ магазина из кабинета YooKassa
+- `SITE_URL=https://pamyat-nsk.vercel.app`
 
-Затем разверните функции:
+Не присылайте секреты в чат и не коммитьте их в Git. Функции уже развёрнуты; после изменения кода нужно развернуть их заново, но после добавления secrets повторный deploy не требуется.
 
 ```bash
 supabase functions deploy create-yookassa-payment
@@ -68,7 +71,7 @@ supabase functions deploy yookassa-webhook
 
 В кабинете YooKassa укажите webhook на endpoint:
 
-`https://YOUR_PROJECT.supabase.co/functions/v1/yookassa-webhook`
+`https://hrxcfzzkjsopdgeczihw.supabase.co/functions/v1/yookassa-webhook`
 
 Настройте события создания/изменения платежа, доступные в вашем кабинете. До тестирования с реальными реквизитами статус оплаты в проекте не считать production-проверенным.
 
@@ -79,7 +82,7 @@ Bucket `order-photos` создаётся закрытым при выполне�
 ## Важные проверки перед запуском
 
 - Убедиться, что первое админское назначение роли выполнено только для доверенного аккаунта.
-- Проверить magic-link redirect URLs.
+- Настроить Site URL и magic-link Redirect URLs, как указано выше.
 - Провести тестовый платёж и отмену в доступном тестовом/боевом режиме провайдера.
 - Проверить загрузку Фото ДО/ПОСЛЕ под ролью исполнителя.
 - Проверить, что завершение заказа невозможно без обеих фотографий.
