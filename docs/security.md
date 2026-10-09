@@ -17,3 +17,13 @@
 3. Configure `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, and `SITE_URL` as Edge Function secrets.
 4. Configure the YooKassa webhook to call `/functions/v1/yookassa-webhook`.
 5. Test sign-in, client/executor authorization, private photo upload, successful and canceled payments, and repeated webhook delivery before launch.
+
+
+## Role-based database checks
+
+The project was tested in rolled-back SQL transactions using temporary client and executor identities:
+
+- An anonymous visitor could read the three active cemetery rows and could not read orders.
+- An assigned executor could read the assigned memorial and advance the order to the before-photo stage.
+- Executor updates to protected order fields and executor cancellation were rejected by the database trigger.
+- A client could create a correctly priced draft order; attempts to order for another client's memorial or alter the amount without changing the care tier were rejected.
