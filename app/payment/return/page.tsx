@@ -14,7 +14,9 @@ const labels:Record<string,string>={
   after_photos:'Фото ПОСЛЕ загружено',
   review:'Заказ на проверке',
   completed:'Заказ завершён',
-  cancelled:'Платёж отменён'
+  cancelled:'Платёж отменён',
+  login:'Войдите в кабинет, чтобы проверить заказ',
+  unavailable:'Не удалось проверить статус заказа'
 }
 
 export default function PaymentReturn(){
@@ -33,9 +35,9 @@ function PaymentReturnContent(){
   let attempts=0
 
   async function check(){
-   if(!orderId||!supabase){setLoading(false);return}
+   if(!orderId||!supabase){setStatus('unavailable');setLoading(false);return}
    const user=await supabase.auth.getUser()
-   if(!user.data.user){setLoading(false);return}
+   if(!user.data.user){setStatus('login');setLoading(false);return}
    const r=await supabase.from('orders').select('status').eq('id',orderId).eq('client_id',user.data.user.id).maybeSingle()
    if(!stopped&&r.data?.status){
     setStatus(r.data.status)
@@ -44,7 +46,7 @@ function PaymentReturnContent(){
    }
    attempts+=1
    if(!stopped&&attempts<8) timer=setTimeout(check,2000)
-   else if(!stopped)setLoading(false)
+   else if(!stopped){setStatus('unavailable');setLoading(false)}
   }
 
   void check()
@@ -57,7 +59,7 @@ function PaymentReturnContent(){
    <section style={{width:'min(520px,100%)',background:'#fffdf8',border:'1px solid #e2ddd1',borderRadius:20,padding:24}}>
     <div style={{letterSpacing:'.12em',fontWeight:800,fontSize:13}}>ПАМЯТЬ</div>
     <h1 style={{fontFamily:'Georgia,serif',fontWeight:500}}>Оплата</h1>
-    <p style={{color:'#72776d',lineHeight:1.5}}>{loading?'Проверяем подтверждение платежа…':label+'.'}</p>
+    <p style={{color:'#72776d',lineHeight:1.5}}>{loading?'Проверяем подтверждение платежа…':status==='cancelled'?'Платёж отменён. Заказ сохранён в кабинете, его можно оплатить повторно.':status==='paid'?'Платёж подтверждён. Заказ появится в истории кабинета.':label+'.'}</p>
     <div style={{display:'inline-flex',borderRadius:999,padding:'7px 10px',background:status==='paid'?'#e8eee8':'#f4f1ea',color:status==='paid'?'#3c5b47':'#72776d',fontSize:12,fontWeight:700}}>{label}</div>
     <div style={{marginTop:20}}>
       <a href="/" style={{display:'inline-block',background:'#3c5b47',color:'#fff',padding:'12px 15px',borderRadius:12,textDecoration:'none'}}>Вернуться в ПАМЯТЬ</a>
