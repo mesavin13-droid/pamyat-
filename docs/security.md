@@ -34,3 +34,10 @@ The project was tested in rolled-back SQL transactions using temporary client an
 - Security-definer trigger functions use an empty `search_path`; trigger/RPC-only functions have direct execution revoked from `public`, `anon`, and `authenticated`.
 - An order cannot enter `before_photos` or progress beyond it unless a `before` photo row exists. This is enforced by the database trigger, not only by the UI.
 - The live database check confirmed that entering `before_photos` without a photo is rejected and the same transition succeeds after the photo record exists. The test creates temporary users/orders and removes them before returning.
+
+
+## Payment retry behavior
+
+- A canceled YooKassa payment attempt stays recorded as canceled; the order can be reopened for another attempt only if a canceled payment record exists.
+- The Edge Function verifies the caller owns the order and checks the prior canceled attempt before retrying. A canceled order without such a payment record cannot be reopened.
+- A rolled-back SQL check confirmed that reopening is rejected without a canceled payment and accepted with one. Temporary test data was removed.
